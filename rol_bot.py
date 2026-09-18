@@ -5,7 +5,31 @@ from telegram.constants import ParseMode
 import random  
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from datetime import datetime
+from flask import Flask
+from threading import Thread
+import os
 
+app = Flask('')
+
+@app.route('/')
+def home():
+    I_am_alive = "Bot çalışıyor ve aktif!"
+    return I_am_alive
+
+def run():
+    # Render, Koyeb veya benzeri platformlar port atar, 
+    # yerelde test ediyorsan 8080 kullanabilirsin
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# Botunu başlatmadan önce bu fonksiyonu çağır
+if __name__ == "__main__":
+    keep_alive()
+    # Buradan sonra kendi bot başlatma kodunu (örneğin bot.infinity_polling()) yazabilirsin
 TOKEN = "8421173302:AAEOZ7zgbj9fAIDa2ItXABGZKO3es-jMU_s"
 DATA_FILE = 'roller.json'
 
@@ -676,7 +700,8 @@ async def ship_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💘 <b>Günün Çifti Belirlendi!</b> 💘\n\nİşte bugün birbirine en çok yakışanlar:\n\n{cift_metni}\n\n✨ <i>Mutluluklar dileriz!</i>",
             parse_mode=ParseMode.HTML
         )
-def main():    
+def main(): 
+    keep_alive()   
     rolleri_yukle() 
     
     application = Application.builder().token(TOKEN).build()
@@ -702,4 +727,3 @@ def main():
     application.run_polling(poll_interval=1.0)
     
 if __name__ == '__main__':
-    main()
