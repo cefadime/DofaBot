@@ -168,7 +168,132 @@ UFC_LISTESI = ["Jon Jones", "Islam Makhachev", "Alex Pereira", "Israel Adesanya"
                 "Brian Ortega", "Yair Rodriguez", "Beneil Dariush", "Arman Tsarukyan", "Michael Morales", "Kevin Holland", "Jiri Prochazka", 
                 "Jamahal Hill", "Magomed Ankalaev", "Ciryl Gane", "Serghei Pavlovich", "Derrick Lewis", "Rose Namajunas", "Valentina Shevchenko", 
                 "Zhang Weili", "Julianna Pena", "Kayla Harrison", "İbo Aslan", "Conor Mcgregor" ,"Khabib Nurmagomedov"]
+SORU_FILE = 'sorular.json'
+# Tek bir ortak soru havuzu
+DOGRULUK_SORULARI = []
+CESARET_SORULARI = []
 
+def sorulari_yukle():
+    global DOGRULUK_SORULARI, CESARET_SORULARI
+    try:
+        with open(SORU_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            DOGRULUK_SORULARI = data.get('dogruluk', [])
+            CESARET_SORULARI = data.get('cesaret', [])
+    except:
+        DOGRULUK_SORULARI = []
+        CESARET_SORULARI = []
+
+def sorulari_kaydet():
+    try:
+        data = {
+            'dogruluk': DOGRULUK_SORULARI,
+            'cesaret': CESARET_SORULARI
+        }
+        with open(SORU_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        logging.error(f"Soru kaydetme hatası: {e}")
+# --- ÖZEL MESAJ SORGUSU VE EKLEME ---
+async def soru_ekle_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("🔒 Soru eklemeyi sadece **bana özel mesaj atarak** yapabilirsin!", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    if not context.args:
+        await update.message.reply_text("⚠️ **Kullanım:** `/ekleD Soru metni` veya `/ekleC Görev metni`", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    command = update.message.text.split()[0].lower()
+    metin = " ".join(context.args)
+
+    if "d" in command:
+        DOGRULUK_SORULARI.append(metin)
+        tur_adi = "Doğruluk"
+    else:
+        CESARET_SORULARI.append(metin)
+        tur_adi = "Cesaret"
+
+    sorulari_kaydet()
+    await update.message.reply_text(f"✅ **{tur_adi}** sorusu havuza eklendi!\n\n`{metin}`", parse_mode=ParseMode.MARKDOWN)
+
+# --- YÖNETİCİ: SORULARI GÖR ---
+async def sorulari_gor(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update, context):
+        await update.message.reply_text("❌ Bu komutu sadece yöneticiler kullanabilir.")
+        return
+
+    msg = "📋 **TÜM SORU HAVUZU**\n\n"
+    
+    msg += "❓ **DOĞRULUK SORULARI:**\n"
+    if DOGRULUK_SORULARI:
+        for i, s in enumerate(DOGRULUK_SORULARI, 1):
+            msg += f"`D{i}` - {s}\n"
+    else:
+        msg += "*(Henüz doğruluk sorusu yok)*\n"
+
+    msg += "\n🔥 **CESARET GÖREVLERİ:**\n"
+    if CESARET_SORULARI:
+        for i, s in enumerate(CESARET_SORULARI, 1):
+            msg += f"`C{i}` - {s}\n"
+    else:
+        msg += "*(Henüz cesaret görevi yok)*\n"
+
+    msg += "\n🗑 *Silmek için:* `/sorusil D1` veya `/sorusil C2`"
+    
+    await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+
+# --- YÖNETİCİ: SORU SİL ---
+async def soru_sil(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update, context):
+        await update.message.reply_text("❌ Bu komutu sadece yöneticiler kullanabilir.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("⚠️ Kullanım: `/sorusil D1` veya `/sorusil C2`", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    kod = context.args[0].upper()
+    
+    try:
+        tur = kod[0]
+        indeks = int(kod[1:]) - 1
+
+        if tur == 'D':
+            if 0 <= indeks < len(DOGRULUK_SORULARI):
+                silinen = DOGRULUK_SORULARI.pop(indeks)
+                sorulari_kaydet()
+                await update.message.reply_text(f"✅ **Doğruluk Sorusu Silindi:**\n`{silinen}`", parse_mode=ParseMode.MARKDOWN)
+            else:
+                await update.message.reply_text("❌ Geçersiz Doğruluk soru numarası!")
+        elif tur == 'C':
+            if 0 <= indeks < len(CESARET_SORULARI):
+                silinen = CESARET_SORULARI.pop(indeks)
+                sorulari_kaydet()
+                await update.message.reply_text(f"✅ **Cesaret Görevi Silindi:**\n`{silinen}`", parse_mode=ParseMode.MARKDOWN)
+            else:
+                await update.message.reply_text("❌ Geçersiz Cesaret görev numarası!")
+        else:
+            await update.message.reply_text("⚠️ Kod `D` veya `C` ile başlamalıdır. (Örn: `D1`, `C3`)")
+    except ValueError:
+        await update.message.reply_text("⚠️ Hatalı format! Örnek kullanım: `/sorusil D1`")
+
+# --- GRUPTA SORU ÇEKME KOMUTLARI ---
+async def dogruluk_cek(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not DOGRULUK_SORULARI:
+        await update.message.reply_text("❓ Havuzda hiç doğruluk sorusu yok! Bota özel mesajdan `/ekleD soru...` yazarak ekleyin.", parse_mode=ParseMode.MARKDOWN)
+        return
+    soru = random.choice(DOGRULUK_SORULARI)
+    user = update.effective_user.first_name
+    await update.message.reply_text(f"🎯 **DOĞRULUK**\n\n👤 **Soru Sorulan:** {user}\n\n❓ **Soru:** {soru}", parse_mode=ParseMode.MARKDOWN)
+
+async def cesaret_cek(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not CESARET_SORULARI:
+        await update.message.reply_text("🔥 Havuzda hiç cesaret görevi yok! Bota özel mesajdan `/ekleC görev...` yazarak ekleyin.", parse_mode=ParseMode.MARKDOWN)
+        return
+    gorev = random.choice(CESARET_SORULARI)
+    user = update.effective_user.first_name
+    await update.message.reply_text(f"🔥 **CESARET**\n\n👤 **Meydan Okunan:** {user}\n\n💥 **Görev:** {gorev}", parse_mode=ParseMode.MARKDOWN)
 # Yardımcı fonksiyon: Rol adını formatlar (Büyük harf ve Türkçe karakterleri basitleştirir)
 def format_role_name(role_name):
     """Gelen rol adını büyük harf yapar ve Türkçe karakterleri basitleştirerek eşleşmeyi garanti eder."""
@@ -701,8 +826,9 @@ async def ship_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML
         )
 def main(): 
+    keep_alive()   
     rolleri_yukle() 
-    
+    sorulari_yukle()
     application = Application.builder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("rol", rol_al)) 
@@ -718,6 +844,11 @@ def main():
     application.add_handler(CommandHandler("slap", slap_komutu))
     application.add_handler(CommandHandler("kiss", kiss_komutu))
     application.add_handler(CommandHandler("ship", ship_komutu))
+    application.add_handler(CommandHandler(["ekled", "eklec"], soru_ekle_dm))
+    application.add_handler(CommandHandler(["sorularigor", "sorulari_gor"], sorulari_gor))
+    application.add_handler(CommandHandler("sorusil", soru_sil))
+    application.add_handler(CommandHandler(["dogruluk", "d"], dogruluk_cek))
+    application.add_handler(CommandHandler(["cesaret", "c"], cesaret_cek))
     application.add_handler(CommandHandler("uno", uno_anket))
     application.add_handler(CommandHandler("kura", uno_kura))
     application.add_handler(CallbackQueryHandler(uno_buton, pattern="^uno_katil$"))
@@ -726,5 +857,5 @@ def main():
     application.run_polling(poll_interval=1.0)
     
 if __name__ == '__main__':
-    keep_alive()   
+    keep_alive()
     main()
