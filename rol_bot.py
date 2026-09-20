@@ -701,7 +701,6 @@ async def ship_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML
         )
 def main(): 
-    keep_alive()   
     rolleri_yukle() 
     
     application = Application.builder().token(TOKEN).build()
@@ -727,3 +726,5 @@ def main():
     application.run_polling(poll_interval=1.0)
     
 if __name__ == '__main__':
+    keep_alive()   
+    main()
